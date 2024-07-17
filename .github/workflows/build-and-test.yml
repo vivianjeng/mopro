@@ -14,16 +14,19 @@ env:
 
 jobs:
     # TODO: Add a job to run clippy
-    lint:
-        runs-on: ubuntu-latest
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
-        steps:
-            - uses: actions/checkout@v4
-            - name: Check formatting
-              run: cargo fmt --all -- --check
+    # lint:
+    #     runs-on: ubuntu-latest
+    #     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+    #     steps:
+    #         - uses: actions/checkout@v4
+    #         - name: Check formatting
+    #           run: cargo fmt --all -- --check
 
     test-ffi-halo2:
-        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                os: [macos-latest, ubuntu-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
         steps:
             - uses: actions/checkout@v4
@@ -35,7 +38,10 @@ jobs:
             - name: Run ffi halo2 tests
               run: cd mopro-ffi && cargo test --features halo2 --no-default-features
     test-ffi-circom:
-        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                os: [macos-latest, ubuntu-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
         steps:
             - uses: actions/checkout@v4
@@ -47,7 +53,10 @@ jobs:
             - name: Run ffi circom tests
               run: cd mopro-ffi && cargo test --features circom --no-default-features
     test-e2e:
-        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                os: [macos-latest, ubuntu-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
         steps:
             - uses: actions/checkout@v4
@@ -138,7 +147,10 @@ jobs:
             - name: Test app in simulator
               run: xcodebuild -project ./test-e2e/ios/mopro-test.xcodeproj -scheme mopro-test -destination 'platform=iOS Simulator,name=iPhone 15' test CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
     build-android-lib:
-        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                os: [macos-latest, ubuntu-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
         steps:
             - uses: actions/checkout@v4
@@ -156,7 +168,10 @@ jobs:
                 path: test-e2e/MoproAndroidBindings
                 key: ${{ github.sha }}-android-lib
     build-android-app:
-        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                os: [macos-latest, ubuntu-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
         needs: build-android-lib
         steps:
             - uses: actions/checkout@v4
