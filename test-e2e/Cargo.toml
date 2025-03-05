@@ -26,6 +26,7 @@ rust-witness = "0.1"
 witnesscalc-adapter = { git = "https://github.com/zkmopro/witnesscalc_adapter.git", branch = "dylib"}
 num-bigint = { version = "0.4.0" }
 anyhow = "1.0"
+rust-rapidsnark = { git = "https://github.com/zkmopro/rust-rapidsnark.git", branch = "dylib"}
 
 # Halo2 dependencies
 halo2-keccak-256 = { git = "https://github.com/ElusAegis/halo2-keccak-stable.git" }
@@ -40,6 +41,7 @@ uniffi = { version = "0.28.0", features = ["build"] }
 # Circom dependencies
 rust-witness = "0.1"
 witnesscalc-adapter = { git = "https://github.com/zkmopro/witnesscalc_adapter.git", branch = "dylib"}
+rust-rapidsnark = { git = "https://github.com/zkmopro/rust-rapidsnark.git", branch = "dylib"}
 
 [dev-dependencies]
 uniffi = { version = "0.28.0", features = ["bindgen-tests"] }

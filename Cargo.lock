@@ -2270,6 +2270,7 @@ dependencies = [
  "thiserror 2.0.3",
  "uniffi",
  "uuid",
+ "witnesscalc-adapter",
 ]
 
 [[package]]
@@ -3511,6 +3512,7 @@ dependencies = [
  "mopro-wasm",
  "num-bigint",
  "plonk-fibonacci",
+ "rust-rapidsnark",
  "rust-witness",
  "uniffi",
  "witnesscalc-adapter",
