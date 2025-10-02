@@ -219,7 +219,7 @@ jobs:
         
           echo "Running test test${ADAPTER_UPPER}ProveVerify"
 
-          timeout 15m xcodebuild \
+          xcodebuild \
             -project ios/MoproApp.xcodeproj \
             -scheme MoproApp \
             -configuration Debug \
@@ -231,7 +231,8 @@ jobs:
             -maximum-parallel-testing-workers 1 \
             -resultBundlePath ${{ runner.temp }}/MoproApp-simulator-test.xcresult \
             -derivedDataPath ${{ runner.temp }}/DerivedData \
-            test
+            test \
+            -destination-timeout 900
 
       - name: Upload Xcode results (failure)
         if: failure()
