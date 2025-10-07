@@ -211,6 +211,7 @@ jobs:
           tar -xzf mopro-example-${{ matrix.adapter }}.tar.gz
 
       - name: Xcode test (simulator, arm64 only)
+        timeout-minutes: 15
         working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
         run: |
           # Capitalize adapter (circom -> Circom, halo2 -> Halo2, noir -> Noir)
@@ -231,8 +232,7 @@ jobs:
             -maximum-parallel-testing-workers 1 \
             -resultBundlePath ${{ runner.temp }}/MoproApp-simulator-test.xcresult \
             -derivedDataPath ${{ runner.temp }}/DerivedData \
-            test \
-            -destination-timeout 900
+            test
 
       - name: Upload Xcode results (failure)
         if: failure()
@@ -249,6 +249,7 @@ jobs:
         matrix:
           adapter: [circom, halo2, noir]
       runs-on: ubuntu-latest
+      timeout-minutes: 15
       if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
       steps:
         - uses: actions/checkout@v5
