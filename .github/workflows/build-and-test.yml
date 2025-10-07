@@ -417,14 +417,17 @@ jobs:
             brew tap wix/brew
             brew install applesimutils
       - name: Prebuild
+        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
         run: npm run prebuild
 
       # Build iOS and Android apps for E2E
       - name: Build iOS for Detox
+        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
         run: npm run e2e:build:ios
 
       # Start Metro bundler in background
       - name: Start Metro bundler
+        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
         run: npx expo start --dev-client --port 8081 &
 
       # Give Metro a few seconds to boot before launching Detox
@@ -432,6 +435,7 @@ jobs:
         run: sleep 20
 
       - name: Run iOS Detox tests
+        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
         run: npm run e2e:test:ios
       # # ---- Android build (headless) ----
       # - name: Setup Java 17
