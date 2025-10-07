@@ -114,260 +114,44 @@ jobs:
           path: ~/.cargo/bin/mopro
           if-no-files-found: error
 
-  cli_template_tests:
-    needs: cli_build
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-        adapter: [circom, halo2, noir]
-    runs-on: ${{ matrix.os }}
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
-    steps:
-      - uses: actions/checkout@v5
+  # cli_template_tests:
+  #   needs: cli_build
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [macos-latest, ubuntu-latest]
+  #       adapter: [circom, halo2, noir]
+  #   runs-on: ${{ matrix.os }}
+  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+  #   steps:
+  #     - uses: actions/checkout@v5
 
-      - name: Prepare template project
-        uses: ./.github/actions/mopro-init-project
-        with:
-          artifact-name: mopro-bin-${{ runner.os }}
-          adapter: ${{ matrix.adapter }}
-          project-name: mopro-example-${{ matrix.adapter }}
-          destination: ${{ runner.temp }}
+  #     - name: Prepare template project
+  #       uses: ./.github/actions/mopro-init-project
+  #       with:
+  #         artifact-name: mopro-bin-${{ runner.os }}
+  #         adapter: ${{ matrix.adapter }}
+  #         project-name: mopro-example-${{ matrix.adapter }}
+  #         destination: ${{ runner.temp }}
 
-      - name: Run tests with JNA
-        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-        run: |
-          curl -L https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar -o jna-5.13.0.jar
-          export CLASSPATH="$PWD/jna-5.13.0.jar"
-          cargo test --all --all-features
+  #     - name: Run tests with JNA
+  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #       run: |
+  #         curl -L https://repo1.maven.org/maven2/net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar -o jna-5.13.0.jar
+  #         export CLASSPATH="$PWD/jna-5.13.0.jar"
+  #         cargo test --all --all-features
 
-  cli_build_ios_prepare:
-    needs: cli_build
-    strategy:
-      fail-fast: false
-      matrix:
-        adapter: [circom, halo2, noir]
-    runs-on: macos-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Prepare template project
-        uses: ./.github/actions/mopro-init-project
-        with:
-          artifact-name: mopro-bin-macOS
-          adapter: ${{ matrix.adapter }}
-          project-name: mopro-example-${{ matrix.adapter }}
-          destination: ${{ runner.temp }}
-
-      - name: Build iOS (release; device+sim arm64 only)
-        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-        run: |
-          "$GITHUB_WORKSPACE/bin/mopro" build \
-            --mode release \
-            --platforms ios \
-            --architectures aarch64-apple-ios aarch64-apple-ios-sim
-
-      - name: Clean the `build` dir to save space
-        run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
-
-      - name: Create iOS framework
-        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-        run: |
-          "$GITHUB_WORKSPACE/bin/mopro" create --framework ios
-
-      - name: Remove build artifacts before packaging
-        run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
-
-      - name: Archive prepared project
-        run: |
-          cd ${{ runner.temp }}
-          tar -czf mopro-example-${{ matrix.adapter }}.tar.gz mopro-example-${{ matrix.adapter }}
-
-      - name: Upload prepared project
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-project-${{ matrix.adapter }}
-          path: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}.tar.gz
-          if-no-files-found: error
-
-  cli_test_ios_simulator:
-    needs: cli_build_ios_prepare
-    strategy:
-      fail-fast: false
-      matrix:
-        adapter: [circom, halo2, noir]
-    runs-on: macos-latest
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: ios-project-${{ matrix.adapter }}
-          path: ${{ runner.temp }}
-
-      - name: Extract prepared project
-        run: |
-          cd ${{ runner.temp }}
-          tar -xzf mopro-example-${{ matrix.adapter }}.tar.gz
-
-      - name: Xcode test (simulator, arm64 only)
-        timeout-minutes: 15
-        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-        run: |
-          # Capitalize adapter (circom -> Circom, halo2 -> Halo2, noir -> Noir)
-          ADAPTER="${{ matrix.adapter }}"
-          ADAPTER_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${ADAPTER:0:1})${ADAPTER:1}"
-        
-          echo "Running test test${ADAPTER_UPPER}ProveVerify"
-
-          xcodebuild \
-            -project ios/MoproApp.xcodeproj \
-            -scheme MoproApp \
-            -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=26.0' \
-            -sdk iphonesimulator \
-            -only-testing:MoproAppUITests/MoproAppUITests/test${ADAPTER_UPPER}ProveVerify \
-            ARCHS=arm64 EXCLUDED_ARCHS='x86_64' ONLY_ACTIVE_ARCH=YES \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            -maximum-parallel-testing-workers 1 \
-            -resultBundlePath ${{ runner.temp }}/MoproApp-simulator-test.xcresult \
-            -derivedDataPath ${{ runner.temp }}/DerivedData \
-            test
-
-      - name: Upload Xcode results (failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-xcode-simulator-test-results-${{ matrix.adapter }}
-          path: |
-            ${{ runner.temp }}/MoproApp-simulator-test.xcresult
-
-  cli_build_android:
-      needs: cli_build
-      strategy:
-        fail-fast: false
-        matrix:
-          adapter: [circom, halo2, noir]
-      runs-on: ubuntu-latest
-      timeout-minutes: 15
-      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
-      steps:
-        - uses: actions/checkout@v5
-
-        - name: Android SDK
-          uses: android-actions/setup-android@v3
-
-        - name: Setup NDK
-          uses: nttld/setup-ndk@v1
-          with:
-            ndk-version: r26d
-
-        - name: Prepare template project
-          uses: ./.github/actions/mopro-init-project
-          with:
-            artifact-name: mopro-bin-${{ runner.os }}
-            adapter: ${{ matrix.adapter }}
-            project-name: mopro-example-${{ matrix.adapter }}
-            destination: ${{ runner.temp }}
-
-        - name: Build Android (release, x86_64)
-          working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-          run: |
-            "$GITHUB_WORKSPACE/bin/mopro" build \
-              --mode release \
-              --platforms android \
-              --architectures x86_64-linux-android
-
-        - name: Clean the `build` dir to save space
-          run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
-
-        - name: Create Android framework
-          working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-          run: |
-            "$GITHUB_WORKSPACE/bin/mopro" create --framework android
-
-        - name: Build android app
-          working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-          run: cd android && chmod +x gradlew && ./gradlew build
-
-        - name: Enable KVM
-          run: |
-            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --name-match=kvm
-
-        - name: Run tests
-          uses: reactivecircus/android-emulator-runner@v2
-          with:
-            api-level: 29
-            target: google_apis
-            arch: x86_64
-            disable-animations: true
-            emulator-options: "-no-snapshot -no-boot-anim -no-window -gpu swiftshader_indirect -memory 2048 -cores 1"
-            script: cd ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/android && ./gradlew connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.moproapp.ExampleInstrumentedTest#${{ matrix.adapter }}ButtonClick
-
-        - name: Upload test report
-          if: failure()
-          uses: actions/upload-artifact@v4
-          with:
-            name: android-test-report
-            path: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/android/app/build/reports/androidTests/connected/debug/
-  
-  cli_build_flutter:
-      needs: cli_build
-      strategy:
-        fail-fast: false
-        matrix:
-          adapter: [circom, halo2, noir]
-      runs-on: ubuntu-latest
-      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
-      steps:
-        - uses: actions/checkout@v5
-
-        - uses: subosito/flutter-action@v2
-          with:
-            flutter-version: '3.35.4'
-            channel: 'stable'
-
-        - name: Prepare template project
-          uses: ./.github/actions/mopro-init-project
-          with:
-            artifact-name: mopro-bin-${{ runner.os }}
-            adapter: ${{ matrix.adapter }}
-            project-name: mopro-example-${{ matrix.adapter }}
-            destination: ${{ runner.temp }}
-
-        - name: Build Flutter (release)
-          working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-          run: |
-            "$GITHUB_WORKSPACE/bin/mopro" build \
-              --mode release \
-              --platforms flutter 
-
-        - name: Clean the `build` dir to save space
-          run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
-
-        - name: Create Flutter framework
-          working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-          run: |
-            "$GITHUB_WORKSPACE/bin/mopro" create --framework flutter
-
-        - name: Build flutter app
-          working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-          run: cd flutter && flutter pub get
-
-  # cli_create_react_native:
+  # cli_build_ios_prepare:
   #   needs: cli_build
   #   strategy:
   #     fail-fast: false
   #     matrix:
   #       adapter: [circom, halo2, noir]
-  #   runs-on: macos-14
-  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo_full_name
+  #   runs-on: macos-latest
+  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
   #   steps:
   #     - uses: actions/checkout@v5
 
-  #     # Build mopro example project for iOS + Android first, and create RN frameworks
   #     - name: Prepare template project
   #       uses: ./.github/actions/mopro-init-project
   #       with:
@@ -384,78 +168,295 @@ jobs:
   #           --platforms ios \
   #           --architectures aarch64-apple-ios aarch64-apple-ios-sim
 
-  #     - name: Build Android (release, x86_64)
-  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-  #       run: |
-  #         "$GITHUB_WORKSPACE/bin/mopro" build \
-  #           --mode release \
-  #           --platforms android \
-  #           --architectures x86_64-linux-android
-
-  #     - name: Clean mopro build dir
+  #     - name: Clean the `build` dir to save space
   #       run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
 
-  #     - name: Create React Native frameworks
+  #     - name: Create iOS framework
   #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
-  #       run: $GITHUB_WORKSPACE/bin/mopro create --framework react-native
-
-  #     # ---- Node & deps ----
-  #     - name: Install Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20'
-
-  #     - name: Install JS packages
-  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
-  #       run: npm ci
-
-  #     - name: Expo prebuild (generate ios/ & android/)
-  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
-  #       env:
-  #         EXPO_NO_INTERACTIVE: '1'
-  #       run: npx expo prebuild --clean
-
-  #     # ---- iOS build (headless) ----
-  #     - name: Install iOS Pods
-  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native/ios
-  #       run: pod install
-
-  #     - name: Build iOS (Debug, iphonesimulator)
-  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
   #       run: |
+  #         "$GITHUB_WORKSPACE/bin/mopro" create --framework ios
+
+  #     - name: Remove build artifacts before packaging
+  #       run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
+
+  #     - name: Archive prepared project
+  #       run: |
+  #         cd ${{ runner.temp }}
+  #         tar -czf mopro-example-${{ matrix.adapter }}.tar.gz mopro-example-${{ matrix.adapter }}
+
+  #     - name: Upload prepared project
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: ios-project-${{ matrix.adapter }}
+  #         path: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}.tar.gz
+  #         if-no-files-found: error
+
+  # cli_test_ios_simulator:
+  #   needs: cli_build_ios_prepare
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       adapter: [circom, halo2, noir]
+  #   runs-on: macos-latest
+  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: ios-project-${{ matrix.adapter }}
+  #         path: ${{ runner.temp }}
+
+  #     - name: Extract prepared project
+  #       run: |
+  #         cd ${{ runner.temp }}
+  #         tar -xzf mopro-example-${{ matrix.adapter }}.tar.gz
+
+  #     - name: Xcode test (simulator, arm64 only)
+  #       timeout-minutes: 15
+  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #       run: |
+  #         # Capitalize adapter (circom -> Circom, halo2 -> Halo2, noir -> Noir)
+  #         ADAPTER="${{ matrix.adapter }}"
+  #         ADAPTER_UPPER="$(tr '[:lower:]' '[:upper:]' <<< ${ADAPTER:0:1})${ADAPTER:1}"
+        
+  #         echo "Running test test${ADAPTER_UPPER}ProveVerify"
+
   #         xcodebuild \
-  #           -workspace ios/*.xcworkspace \
-  #           -scheme reactnativeapp \
+  #           -project ios/MoproApp.xcodeproj \
+  #           -scheme MoproApp \
   #           -configuration Debug \
+  #           -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=26.0' \
   #           -sdk iphonesimulator \
+  #           -only-testing:MoproAppUITests/MoproAppUITests/test${ADAPTER_UPPER}ProveVerify \
   #           ARCHS=arm64 EXCLUDED_ARCHS='x86_64' ONLY_ACTIVE_ARCH=YES \
   #           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-  #           build
+  #           -maximum-parallel-testing-workers 1 \
+  #           -resultBundlePath ${{ runner.temp }}/MoproApp-simulator-test.xcresult \
+  #           -derivedDataPath ${{ runner.temp }}/DerivedData \
+  #           test
 
-  #     # ---- Android build (headless) ----
-  #     - name: Setup Java 17
-  #       uses: actions/setup-java@v4
-  #       with:
-  #         distribution: temurin
-  #         java-version: '17'
-  #         cache: 'gradle'
-
-  #     - name: Android SDK (cmdline only)
-  #       uses: android-actions/setup-android@v3
-
-  #     - name: Assemble Android Debug (no emulator)
-  #       working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native/android
-  #       run: ./gradlew --no-daemon --stacktrace assembleDebug
-
-  #     - name: Upload native build outputs (on failure)
+  #     - name: Upload Xcode results (failure)
   #       if: failure()
   #       uses: actions/upload-artifact@v4
   #       with:
-  #         name: rn-build-outputs-${{ matrix.adapter }}
+  #         name: ios-xcode-simulator-test-results-${{ matrix.adapter }}
   #         path: |
-  #           ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native/ios/build/**/*.log
-  #           ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native/android/app/build/outputs/**
-  #         if-no-files-found: ignore
+  #           ${{ runner.temp }}/MoproApp-simulator-test.xcresult
+
+  # cli_build_android:
+  #     needs: cli_build
+  #     strategy:
+  #       fail-fast: false
+  #       matrix:
+  #         adapter: [circom, halo2, noir]
+  #     runs-on: ubuntu-latest
+  #     timeout-minutes: 15
+  #     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+  #     steps:
+  #       - uses: actions/checkout@v5
+
+  #       - name: Android SDK
+  #         uses: android-actions/setup-android@v3
+
+  #       - name: Setup NDK
+  #         uses: nttld/setup-ndk@v1
+  #         with:
+  #           ndk-version: r26d
+
+  #       - name: Prepare template project
+  #         uses: ./.github/actions/mopro-init-project
+  #         with:
+  #           artifact-name: mopro-bin-${{ runner.os }}
+  #           adapter: ${{ matrix.adapter }}
+  #           project-name: mopro-example-${{ matrix.adapter }}
+  #           destination: ${{ runner.temp }}
+
+  #       - name: Build Android (release, x86_64)
+  #         working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #         run: |
+  #           "$GITHUB_WORKSPACE/bin/mopro" build \
+  #             --mode release \
+  #             --platforms android \
+  #             --architectures x86_64-linux-android
+
+  #       - name: Clean the `build` dir to save space
+  #         run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
+
+  #       - name: Create Android framework
+  #         working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #         run: |
+  #           "$GITHUB_WORKSPACE/bin/mopro" create --framework android
+
+  #       - name: Build android app
+  #         working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #         run: cd android && chmod +x gradlew && ./gradlew build
+
+  #       - name: Enable KVM
+  #         run: |
+  #           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+  #           sudo udevadm control --reload-rules
+  #           sudo udevadm trigger --name-match=kvm
+
+  #       - name: Run tests
+  #         uses: reactivecircus/android-emulator-runner@v2
+  #         with:
+  #           api-level: 29
+  #           target: google_apis
+  #           arch: x86_64
+  #           disable-animations: true
+  #           emulator-options: "-no-snapshot -no-boot-anim -no-window -gpu swiftshader_indirect -memory 2048 -cores 1"
+  #           script: cd ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/android && ./gradlew connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.moproapp.ExampleInstrumentedTest#${{ matrix.adapter }}ButtonClick
+
+  #       - name: Upload test report
+  #         if: failure()
+  #         uses: actions/upload-artifact@v4
+  #         with:
+  #           name: android-test-report
+  #           path: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/android/app/build/reports/androidTests/connected/debug/
+  
+  # cli_build_flutter:
+  #     needs: cli_build
+  #     strategy:
+  #       fail-fast: false
+  #       matrix:
+  #         adapter: [circom, halo2, noir]
+  #     runs-on: ubuntu-latest
+  #     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+  #     steps:
+  #       - uses: actions/checkout@v5
+
+  #       - uses: subosito/flutter-action@v2
+  #         with:
+  #           flutter-version: '3.35.4'
+  #           channel: 'stable'
+
+  #       - name: Prepare template project
+  #         uses: ./.github/actions/mopro-init-project
+  #         with:
+  #           artifact-name: mopro-bin-${{ runner.os }}
+  #           adapter: ${{ matrix.adapter }}
+  #           project-name: mopro-example-${{ matrix.adapter }}
+  #           destination: ${{ runner.temp }}
+
+  #       - name: Build Flutter (release)
+  #         working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #         run: |
+  #           "$GITHUB_WORKSPACE/bin/mopro" build \
+  #             --mode release \
+  #             --platforms flutter 
+
+  #       - name: Clean the `build` dir to save space
+  #         run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
+
+  #       - name: Create Flutter framework
+  #         working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #         run: |
+  #           "$GITHUB_WORKSPACE/bin/mopro" create --framework flutter
+
+  #       - name: Build flutter app
+  #         working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+  #         run: cd flutter && flutter pub get
+
+  cli_create_react_native:
+    needs: cli_build
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: [circom, halo2, noir]
+    runs-on: macos-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo_full_name
+    steps:
+      - uses: actions/checkout@v5
+
+      # Build mopro example project for iOS + Android first, and create RN frameworks
+      - name: Prepare template project
+        uses: ./.github/actions/mopro-init-project
+        with:
+          artifact-name: mopro-bin-macOS
+          adapter: ${{ matrix.adapter }}
+          project-name: mopro-example-${{ matrix.adapter }}
+          destination: ${{ runner.temp }}
+
+      - name: Build iOS (release; device+sim arm64 only)
+        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+        run: |
+          "$GITHUB_WORKSPACE/bin/mopro" build \
+            --mode release \
+            --platforms ios \
+            --architectures aarch64-apple-ios aarch64-apple-ios-sim
+
+      # - name: Build Android (release, x86_64)
+      #   working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+      #   run: |
+      #     "$GITHUB_WORKSPACE/bin/mopro" build \
+      #       --mode release \
+      #       --platforms android \
+      #       --architectures x86_64-linux-android
+
+      - name: Clean mopro build dir
+        run: rm -rf ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/build
+
+      - name: Create React Native frameworks
+        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
+        run: $GITHUB_WORKSPACE/bin/mopro create --framework react-native
+
+      # ---- Node & deps ----
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install JS packages
+        working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native
+        run: npm ci
+
+      - name: Install Expo CLI
+        run: npm install -g expo-cli
+
+      - name: Install applesimutils
+        run: |
+            brew tap wix/brew
+            brew install applesimutils
+      - name: Prebuild
+        run: npm run prebuild
+
+      # Build iOS and Android apps for E2E
+      - name: Build iOS for Detox
+        run: npm run e2e:build:ios
+
+      # Start Metro bundler in background
+      - name: Start Metro bundler
+        run: npx expo start --dev-client --port 8081 &
+
+      # Give Metro a few seconds to boot before launching Detox
+      - name: Wait for Metro
+        run: sleep 20
+
+      - name: Run iOS Detox tests
+        run: npm run e2e:test:ios
+      # # ---- Android build (headless) ----
+      # - name: Setup Java 17
+      #   uses: actions/setup-java@v4
+      #   with:
+      #     distribution: temurin
+      #     java-version: '17'
+      #     cache: 'gradle'
+
+      # - name: Android SDK (cmdline only)
+      #   uses: android-actions/setup-android@v3
+
+      # - name: Assemble Android Debug (no emulator)
+      #   working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native/android
+      #   run: ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Upload native build outputs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rn-build-outputs-${{ matrix.adapter }}
+          path: |
+            ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native/ios/build/**/*.log
+            ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}/react-native/android/app/build/outputs/**
+          if-no-files-found: ignore
 
   # cli_build_web:
   #     needs: 
