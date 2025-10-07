@@ -382,7 +382,7 @@ jobs:
           "$GITHUB_WORKSPACE/bin/mopro" build \
             --mode release \
             --platforms ios \
-            --architectures aarch64-apple-ios aarch64-apple-ios-sim
+            --architectures aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 
       # - name: Build Android (release, x86_64)
       #   working-directory: ${{ runner.temp }}/mopro-example-${{ matrix.adapter }}
