@@ -11,6 +11,6 @@ impl ProvingSystem for Gnark {
     const ADAPTER: Adapter = Adapter::Gnark;
 
     const DEPENDENCIES: &'static str = r#"
-rust-gnark = { git = "https://github.com/vivianjeng/rust-gnark", branch = "main" }
+rust-gnark = { git = "https://github.com/vivianjeng/rust-gnark", branch = "master" }
     "#;
 }
